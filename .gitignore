@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pdf
+large_product*
+acc_explore.mp4

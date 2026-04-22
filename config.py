@@ -1,0 +1,67 @@
+# ── Grid ──────────────────────────────────────────────────────────────────────
+N = 20
+M = 20
+H = 3                   # sensor range (Manhattan distance)
+GAMMA              = 0.99
+DISTANCE_THRESHOLD = 6
+
+# ── Algorithm weights ─────────────────────────────────────────────────────────
+ALPHA1 = 1
+ALPHA2 = 20
+ALPHA3 = 1
+BETA   = 0
+
+# ── Task specification (LTL) ──────────────────────────────────────────────────
+FORMULA_STR      = "(!d U (d U (p U((d|p) U s)) )) & (F s) & (!s U p)"
+ACCEPTING_STATES = {'accept_all'}
+TRASH_STATE      = 'Trash'
+
+# ── Robot initial state ───────────────────────────────────────────────────────
+INITIAL_PHYSICAL_STATE = 0
+
+# ── Map: cell id → set of atomic propositions ─────────────────────────────────
+# 'd' = danger zone, 'p' = plant, 's' = safe/goal
+# Grid is N×M (20×20), cells numbered 0–399 in row-major order.
+# Cells not listed here have no propositions (empty set).
+NODE_LABELS = {
+    # ── obstacle block 1 (rows 0-5, cols 10-14) ──────────────────────────────
+    10: {'d'}, 11: {'d'}, 12: {'d'}, 13: {'d'}, 14: {'d'},
+    30: {'d'}, 31: {'d'}, 32: {'d'}, 33: {'d'}, 34: {'d'},
+    50: {'d'}, 51: {'p'}, 52: {'d'}, 53: {'s'}, 54: {'d'},
+    70: {'d'}, 71: {'d'}, 72: {'d'}, 73: {'d'}, 74: {'d'},
+    90: {'d'}, 91: {'d'}, 92: {'d'}, 93: {'d'}, 94: {'d'},
+
+    # ── obstacle block 2 (rows 5-10, cols 0-4 and 10-14) ─────────────────────
+   100: {'d'}, 101: {'d'}, 102: {'d'}, 103: {'d'}, 104: {'d'},
+   110: {'d'}, 111: {'d'}, 112: {'d'}, 113: {'d'}, 114: {'d'},
+   120: {'d'}, 121: {'d'}, 122: {'d'}, 123: {'p'}, 124: {'d'},
+   140: {'d'}, 141: {'d'}, 142: {'d'}, 143: {'d'}, 144: {'d'},
+   160: {'d'}, 161: {'d'}, 162: {'d'}, 163: {'d'}, 164: {'d'},
+   174: {'d'}, 175: {'d'},
+   180: {'d'}, 181: {'d'}, 182: {'d'}, 183: {'d'}, 184: {'d'},
+   194: {'d'}, 195: {'d'},
+   200: {'d'}, 201: {'d'}, 202: {'d'}, 203: {'d'}, 204: {'d'},
+   214: {'d'}, 215: {'d'},
+
+    # ── obstacle block 3 (lower-right region) ────────────────────────────────
+   283: {'d'}, 284: {'d'}, 285: {'d'}, 286: {'d'}, 287: {'d'},
+   303: {'d'}, 304: {'d'}, 305: {'d'}, 306: {'d'}, 307: {'d'},
+   315: {'d'}, 316: {'d'}, 317: {'d'}, 318: {'d'}, 319: {'d'},
+   323: {'d'}, 324: {'d'}, 325: {'d'}, 326: {'d'}, 327: {'d'},
+   335: {'d'}, 336: {'d'}, 337: {'d'}, 338: {'d'}, 339: {'d'},
+   355: {'d'}, 356: {'d'}, 357: {'d'}, 358: {'d'}, 359: {'d'},
+   375: {'d'}, 376: {'d'}, 377: {'d'}, 378: {'d'}, 379: {'d'},
+   395: {'d'}, 396: {'d'}, 397: {'d'}, 398: {'d'}, 399: {'d'},
+}
+
+# ── Visualization: proposition → color role ───────────────────────────────────
+# 'r1' = blue  (W)  — safe/goal cells
+# 'r2' = green (S)  — plant cells
+# 'r3' = red   (V)  — adversarial cells (unused here)
+# 'r4' = yellow(G)  — danger cells
+# 'r5' = orange     — agent-2 cells (unused here)
+PROP_COLOR_ROLE = {
+    's': 'r1',
+    'p': 'r2',
+    'd': 'r4',
+}
