@@ -85,7 +85,7 @@ This translates the scLTL formula to a DFA, runs the TL-aware frontier explorati
 | `ALPHA2` | `20` | Weight for task progress |
 | `ALPHA3` | `1` | Trajectory cost exponent |
 
-The default scenario is a **search-and-rescue** task: the robot must locate a person (`p`) and a safe exit (`s`) inside a lower-level region (`d`) that is one-way (a commit region). The formula is:
+The default scenario is a **search-and-rescue** task: the robot must locate a person (`p`) and a safe exit (`s`) inside a lower-level region (`d`) that is one-way (commit). The formula is:
 
 ```
 ϕ = (¬d U (d U (p U ((d∨p) U s)))) ∧ ◇s ∧ (¬s U p)
