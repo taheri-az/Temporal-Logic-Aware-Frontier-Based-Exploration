@@ -16,17 +16,20 @@ The key idea is the notion of **commit states** — DFA states from which certai
 
 Frontiers are scored by:
 
-```
-V(x) = max over sp [ (α₁·I(x) + α₂·Ω(sp)) / Wp(sp)^α₃ ]
-```
+$$
+V(x) = \max_{s_p} \frac{\alpha_1 \cdot I(x) + \alpha_2 \cdot \Omega(s_p)}{W_p(s_p)^{\alpha_3}}
+$$
 
-where `I(x)` is information gain, `Wp(sp)` is trajectory cost, and `Ω(sp)` is the task progress metric:
+where $I(x)$ is information gain, $W_p(s_p)$ is trajectory cost, and $\Omega(s_p)$ is the task progress metric:
 
-```
-Ω(sp) = -∞                  if trajectory reaches trash state
-         -(α₁·|X|)/α₂       if trajectory ends in a commit state
-         Δφ(s(0), s(f))      otherwise
-```
+$$
+\Omega(s_p) =
+\begin{cases}
+-\infty & \text{if trajectory reaches trash state} \\
+-\dfrac{\alpha_1 \cdot |X|}{\alpha_2} & \text{if trajectory ends in a commit state} \\
+\Delta\varphi(s(0), s(f)) & \text{otherwise}
+\end{cases}
+$$
 
 Paths to frontiers are planned over the **product automaton (TS × DFA)**, not just the physical space, so the robot accounts for task consequences when selecting frontiers.
 
