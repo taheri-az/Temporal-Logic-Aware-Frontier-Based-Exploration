@@ -3,6 +3,11 @@ import buddy
 from graphviz import Digraph
 from itertools import product
 import re
+import networkx as nx
+import numpy as np
+from collections import deque
+import math
+
 def create_grid(n, m):
     grid = np.zeros((n, m), dtype=int)
     return grid
@@ -164,17 +169,10 @@ def compute_commit_states(phi, dot_file=None, fmt="pdf"):
 
 
 
-import numpy as np
-import networkx as nx
-
-
-import networkx as nx
-import numpy as np
 
 
 def generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node_labels):
-    import numpy as np
-    import networkx as nx
+    
 
     # --- Build DFA dictionary for fast lookup ---
     dfa_dict = {}
@@ -267,9 +265,7 @@ def prune_dfa_transitions_single_ap_only(dfa_transitions, atomic_props):
 
     return pruned_transitions
 
-from collections import deque
 
-from collections import deque
 
 def compute_dfa_distances_to_accepting(dfa_states, dfa_transitions, accepting_states):
     """
@@ -319,9 +315,6 @@ def compute_dfa_distances_to_accepting(dfa_states, dfa_transitions, accepting_st
     # print("dfaaaa",dfa_distances)
     return dfa_distances
 
-
-import spot
-import spot
 
 
 def get_states_within_h_distance_with_diagonals(m, n, current_physical_state, h):
@@ -411,7 +404,6 @@ def find_new_physical_nodes_edges(visited, product_nodes, adj_matrix, product_gr
 
 
 
-from collections import deque
 
 def find_shortest_path_to_accepting(current_product_state, accepting_dfa_states, transitions):
     """
@@ -489,8 +481,6 @@ def detect_frontiers_e(n, m, visited, unknown):
 
     return frontiers
 
-import numpy as np
-from collections import deque
 
 
 def normalize_dfa_transitions(dfa_transitions):
@@ -506,7 +496,6 @@ def normalize_dfa_transitions(dfa_transitions):
     return normalized
 
 
-import networkx as nx
 
 def build_product_graph(n, m, dfa_transitions, node_labels):
     """
@@ -533,8 +522,6 @@ def build_product_graph(n, m, dfa_transitions, node_labels):
     return G
 
 
-import math
-from collections import deque
 
 
 def shortest_product_path_to_frontier(
@@ -810,7 +797,6 @@ def extract_dfa_transitions_with_trash_expanded(formula):
     return expanded_transitions, initial_state_name, trash_states_set
 
 
-import re
 
 def extract_atomic_props(formula):
     # Match sequences of letters (assume atomic props are alphabetic)
