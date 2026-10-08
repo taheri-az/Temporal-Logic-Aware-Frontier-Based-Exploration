@@ -19,9 +19,9 @@ nodes, edges, adj_matrix = create_graph(n, m)
 X_size                   = n * m
 
 # ── DFA from LTL formula ──────────────────────────────────────────────────────
-atomic_props = extract_atomic_props(FORMULA_STR)
 dfa_transitions, initial_state, trash_states_set = \
     extract_dfa_transitions_with_trash_expanded(FORMULA_STR)
+atomic_props = extract_atomic_props_from_dfa(dfa_transitions)
 pruned_dfa_transitions = prune_dfa_transitions_single_ap_only(
     dfa_transitions, atomic_props
 )
@@ -42,7 +42,7 @@ node_labels = {int(node): set() for node in nodes.flatten()}
 
 # ── Initial product automaton (all cells unknown) ─────────────────────────────
 product_graph, transitions, product_nodes, PR_adj_matrix = \
-    generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node_labels)
+    generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node_labels, atomic_props)
 
 # ── DFA distances & commit states ─────────────────────────────────────────────
 dfa_distances = compute_dfa_distances_to_accepting(
@@ -69,21 +69,18 @@ while True:
 
     # Step 1: reveal cells within sensor range
     h_neighbors = get_states_within_h_distance(m, n, current_physical_state, h)
-    new_nodes, new_edges = find_new_physical_nodes_edges(
-        visited, product_nodes, adj_matrix, product_graph
-    )
     for node in h_neighbors:
         node_labels[node] = node_labels_t.get(node, set())
         visited.add(node)
 
     # Step 2: rebuild product automaton with updated labels
     product_graph, transitions, product_nodes, PR_adj_matrix = \
-        generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node_labels)
+        generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node_labels, atomic_props)
 
     # Step 3: check if accepting path is already reachable
     current_product_state = (current_physical_state, current_dfa_state)
     accepting_path = find_shortest_path_to_accepting(
-        current_product_state, {'accept_all'}, transitions
+        current_product_state, accepting_states, transitions
     )
     if accepting_path:
         print("Accepting path found! Executing...")
@@ -108,7 +105,7 @@ while True:
     }
     weights, best_paths = {}, {}
     for x in frontiers:
-        w, sp = compute_frontier_commit(
+        w, sp = compute_frontier_value(
             x=x,
             product_graph=product_graph,
             start_cell=current_physical_state,
@@ -135,13 +132,13 @@ while True:
     best_frontier = max(valid_frontiers, key=lambda x: weights[x])
     path = [s for (s, q) in best_paths[best_frontier]]
 
-    if current_dfa_state == 'accepting_all':
+    if current_dfa_state in accepting_states:
         break
 
     # Step 6: execute path and update DFA state
     for step in path[1:]:
         label = node_labels.get(step, set())
-        current_dfa_state      = get_next_dfa_state(current_dfa_state, label, dfa_transitions)
+        current_dfa_state      = get_next_dfa_state(current_dfa_state, label, dfa_transitions, atomic_props)
         current_physical_state = step
         for node in get_states_within_h_distance(m, n, current_physical_state, h):
             node_labels[node] = node_labels_t.get(node, set())

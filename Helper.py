@@ -171,19 +171,20 @@ def compute_commit_states(phi, dot_file=None, fmt="pdf"):
 
 
 
-def generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node_labels):
-    
+def generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions,
+                                 node_labels, atomic_props):
+    """
+    Build the product automaton (grid x DFA).
+
+    Observation strings are generated using `atomic_props`, which must be the
+    DFA's own AP ordering, so that every generated string matches a DFA edge.
+    """
 
     # --- Build DFA dictionary for fast lookup ---
     dfa_dict = {}
     for q, obs_list, q_next in dfa_transitions:
         for formula in obs_list:  # allow multiple formulas
             dfa_dict[(q, formula)] = q_next
-
-    # --- Helper: convert node label set to DFA observation string ---
-    def make_obs_formula(label_set):
-        aps = ['s', 'p', 'd']
-        return ' && '.join([ap if ap in label_set else f"!{ap}" for ap in aps])
 
     # --- Build adjacency dict from edge list ---
     adj = {int(v): [] for v in nodes.flatten()}
@@ -192,14 +193,7 @@ def generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node
         adj[int(v)].append(int(u))  # if undirected
 
     # --- Enumerate all product nodes ---
-    product_nodes = []
-    node_to_index = {}
-    for v in nodes.flatten():
-        v = int(v)
-        for q in dfa_states:
-            idx = len(product_nodes)
-            product_nodes.append((v, q))
-            node_to_index[(v, q)] = idx
+    product_nodes = [(int(v), q) for v in nodes.flatten() for q in dfa_states]
 
     # --- Build product transitions ---
     transitions = {pn: set() for pn in product_nodes}  # use set to remove duplicates
@@ -209,12 +203,10 @@ def generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node
         if v not in adj:
             continue
         for v_next in adj[v]:
-            obs = make_obs_formula(node_labels.get(v_next, set()))
+            obs = _obs_formula(node_labels.get(v_next, set()), atomic_props)
             for q in dfa_states:
-                current_state = (v, q)
                 if (q, obs) in dfa_dict:
-                    q_next = dfa_dict[(q, obs)]
-                    transitions[current_state].add((v_next, q_next))
+                    transitions[(v, q)].add((v_next, dfa_dict[(q, obs)]))
 
     # Convert sets to lists for output
     for k in transitions:
@@ -227,16 +219,7 @@ def generate_product_automaton22(nodes, edges, dfa_states, dfa_transitions, node
         for dst in dst_list:
             product_graph.add_edge(src, dst)
 
-    # --- Build adjacency matrix ---
-    n = len(product_nodes)
-    PR_adj_matrix = np.zeros((n, n), dtype=int)
-    for src, dst_list in transitions.items():
-        i = node_to_index[src]
-        for dst in dst_list:
-            j = node_to_index[dst]
-            PR_adj_matrix[i, j] = 1
-
-    return product_graph, transitions, product_nodes, PR_adj_matrix
+    return product_graph, transitions, product_nodes, None
 
 
 def prune_dfa_transitions_single_ap_only(dfa_transitions, atomic_props):
@@ -524,148 +507,61 @@ def build_product_graph(n, m, dfa_transitions, node_labels):
 
 
 
-def shortest_product_path_to_frontier(
-    product_graph,
-    start_cell,
-    start_dfa_state,
-    frontier_cell,
-    accepting_states,
-    commit_states,
-    trash_state
+def compute_frontier_value(
+    x, product_graph, start_cell, start_dfa_state, accepting_states,
+    commit_states, trash_state, delta_phi, I_x, X_size, dfa_distance,
+    alpha1, alpha2, alpha3
 ):
     """
-    Return shortest path from (start_cell, start_dfa_state) to frontier_cell
-    in ANY non-trash DFA state.
+    Compute frontier value V(x) and the trajectory sp that achieves it.
+
+    A frontier cell x appears in the product as one copy (x, q) per DFA state.
+    Every non-trash copy is scored, and the best V over all copies is returned,
+    so a frontier reachable only via a longer but task-advancing detour still
+    gets credit for that detour.
+
+    Returns:
+        Vx: float  (-inf if unreachable / unsafe)
+        sp: list of product states (or None)
     """
-
-    # collect all product nodes corresponding to the frontier cell (skip trash)
-    frontier_nodes = [
-        (frontier_cell, q[1]) for q in product_graph.nodes if q[0] == frontier_cell and q[1] != trash_state
-    ]
-
-    if not frontier_nodes:
-        return None
-
     start_node = (start_cell, start_dfa_state)
 
-    shortest_path = None
-    min_len = float('inf')
+    frontier_nodes = [
+        (cell, q) for (cell, q) in product_graph.nodes()
+        if cell == x and q != trash_state
+    ]
+    if not frontier_nodes:
+        return float('-inf'), None
+
+    best_Vx = float('-inf')
+    best_sp = None
 
     for target in frontier_nodes:
         try:
-            path = nx.shortest_path(product_graph, source=start_node, target=target)
-            if len(path) < min_len:
-                shortest_path = path
-                min_len = len(path)
-        except nx.NetworkXNoPath:
+            sp = nx.shortest_path(product_graph, source=start_node, target=target)
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
             continue
 
-    return shortest_path
-
-
-def task_progress_metric(
-    sp,
-    accepting_states,
-    commit_states,
-    trash_state,
-    delta_phi,
-    X_size,
-    alpha1,
-    alpha2
-):
-    if sp is None:
-        return -math.inf
-
-    _, qf = sp[-1]
-
-    if qf == trash_state:
-        return -math.inf
-
-    if qf in commit_states:
-        return -alpha1 * X_size / alpha2
-
-    q0 = sp[0][1]
-    return delta_phi(q0, qf)
-
-
-
-
-
-
-
-def compute_frontier_commit(
-    x,
-    product_graph,
-    start_cell,
-    start_dfa_state,
-    accepting_states,
-    commit_states,
-    trash_state,
-    delta_phi,
-    I_x,
-    X_size,
-    dfa_distance,
-    alpha1,
-    alpha2,
-    alpha3
-):
-    """
-    Compute frontier value V(x) and trajectory sp.
-
-    Returns:
-        Vx: float
-        sp: list of product states (or None if unreachable/unsafe)
-    """
-
-    # ----------------------------
-    # 1. Compute shortest product path to frontier
-    # ----------------------------
-    sp = shortest_product_path_to_frontier(
-        product_graph,
-        start_cell,
-        start_dfa_state,
-        x,
-        accepting_states,
-        commit_states,
-        trash_state
-    )
-
-    # ----------------------------
-    # 2. Compute task progress metric Ω(sp)
-    # ----------------------------
-    if sp is None:
-        Omega = float('-inf')
-    else:
-        q0 = sp[0][1]          # initial DFA state
-        qf = sp[-1][1]         # final DFA state
-
+        q0 = sp[0][1]
+        qf = sp[-1][1]
         if qf == trash_state:
-            Omega = float('-inf')
-        elif qf in commit_states:
-            Omega = -alpha1 * X_size / alpha2
+            continue
+
+        if qf in commit_states:
+            Omega = -alpha1 * X_size / float(alpha2)
         else:
             Omega = delta_phi(q0, qf, dfa_distance)
 
-    # ----------------------------
-    # 3. Compute trajectory weight Wp(sp)
-    # ----------------------------
-    Wp = len(sp) - 1 if sp is not None else 1
+        Wp = len(sp) - 1
+        if Wp == 0:
+            Wp = 1
 
-    # ----------------------------
-    # 4. Compute frontier value
-    # ----------------------------
-    if Omega == float('-inf'):
-        Vx = float('-inf')
-    else:
         Vx = (alpha1 * I_x + alpha2 * Omega) / (Wp ** alpha3)
+        if Vx > best_Vx:
+            best_Vx = Vx
+            best_sp = sp
 
-    # ----------------------------
-    # 5. Return both weight and path
-    # ----------------------------
-    # print("xxx",x, Omega,I_x,Wp ,Vx)
-    return Vx, sp
-
-
+    return best_Vx, best_sp
 
 
 def delta_phi(q_start, q_final, dfa_distances):
@@ -682,7 +578,7 @@ def delta_phi(q_start, q_final, dfa_distances):
 
 
 
-def get_next_dfa_state(current_dfa_state, node_label, dfa_transitions):
+def get_next_dfa_state(current_dfa_state, node_label, dfa_transitions, atomic_props):
     """
     Compute the next DFA state given the current state and node label.
 
@@ -694,34 +590,23 @@ def get_next_dfa_state(current_dfa_state, node_label, dfa_transitions):
         Set of atomic propositions active at the node, e.g., {'s', 'd'}.
     dfa_transitions : list of tuples
         DFA transitions of the form (q, [formula], q_next).
+    atomic_props : list
+        AP ordering used by the DFA's transition formulas.
 
     Returns
     -------
     next_state : str or None
         Next DFA state if a transition exists, otherwise None.
     """
+    obs_formula = _obs_formula(node_label, atomic_props)
 
-    # Convert node_label set to formula string for matching
-    def make_obs_formula(label_set):
-        return ' && '.join([ap if ap in label_set else f"!{ap}" for ap in ['s', 'p', 'd']])
-
-    obs_formula = make_obs_formula(node_label)
-
-    # Search DFA transitions
     for q, formulas, q_next in dfa_transitions:
-        if q != current_dfa_state:
+        if q != current_dfa_state or len(formulas) != 1:
             continue
-        # Only single-formula transitions
-        if len(formulas) != 1:
-            continue
-        formula = formulas[0]
-        if formula == obs_formula:
+        if formulas[0] == obs_formula:
             return q_next
 
-    # No valid transition found
     return None
-
-
 
 
 def extract_dfa_transitions_with_trash_expanded(formula):
@@ -812,3 +697,34 @@ def extract_atomic_props(formula):
     # Filter out keywords, keep only propositions
     atomic_props = sorted(set(tok for tok in tokens if tok not in keywords))
     return atomic_props
+
+
+def extract_atomic_props_from_dfa(dfa_transitions):
+    """
+    Extract atomic propositions in the exact order used by the DFA's own
+    transition formulas, so observation strings match DFA edge labels.
+    """
+    if not dfa_transitions:
+        return []
+
+    first_formula = dfa_transitions[0][1][0]
+    tokens = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', first_formula)
+    keywords = {'X', 'G', 'F', 'U', 'R', 'W', 'M', 'true', 'false',
+                'True', 'False', 'not', 'and', 'or'}
+
+    atomic_props, seen = [], set()
+    for tok in tokens:
+        if tok not in keywords and tok not in seen:
+            atomic_props.append(tok)
+            seen.add(tok)
+    return atomic_props
+
+
+def _obs_formula(label_set, atomic_props):
+    """
+    Convert a set of active propositions into the DFA observation string,
+    e.g. {'p'} with aps ['s','p','d'] -> "!s && p && !d".
+    """
+    if not atomic_props:
+        return 'true'
+    return ' && '.join(ap if ap in label_set else f"!{ap}" for ap in atomic_props)
